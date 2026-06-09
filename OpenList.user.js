@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         OpenList 智能刮削整理工具 (基于 TMDB)
 // @namespace    https://github.com/
-// @version      4.2
+// @version      4.3
 // @description  利用 TMDB 智能解析 OpenList 中的影视资源，自动刮削并规范目录结构（完美支持剧名提取、集数识别、去重跳过等）
 // @author       Your Name
 // @license      MIT
