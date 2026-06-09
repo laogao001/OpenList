@@ -5,8 +5,8 @@
 // @description  利用 TMDB 智能解析 OpenList 中的影视资源，自动刮削并规范目录结构（完美支持剧名提取、集数识别、去重跳过等）
 // @author       Your Name
 // @license      MIT
-// @match        http://*/*
-// @match        https://*/*
+// @match        *://*oplist*/*
+// @match        *://*openlist*/*
 // @grant        GM_xmlhttpRequest
 // @grant        GM_setValue
 // @grant        GM_getValue
