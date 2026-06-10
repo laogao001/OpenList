@@ -3,7 +3,7 @@
 // @name:zh-CN   embyToLocalPlayer
 // @name:en      embyToLocalPlayer
 // @namespace    https://github.com/kjtsune/embyToLocalPlayer
-// @version      2026.02.11
+// @version      2026.02.12
 // @description  Emby/Jellyfin 调用外部本地播放器，并回传播放记录。适配 Plex。
 // @description:zh-CN Emby/Jellyfin 调用外部本地播放器，并回传播放记录。适配 Plex。
 // @description:en  Play in an external player. Update watch history to Emby/Jellyfin server. Support Plex.
@@ -26,8 +26,6 @@
 // @run-at       document-start
 // @connect      127.0.0.1
 // @license MIT
-// @downloadURL https://update.greasyfork.org/scripts/448648/embyToLocalPlayer.user.js
-// @updateURL https://update.greasyfork.org/scripts/448648/embyToLocalPlayer.meta.js
 // ==/UserScript==
 'use strict';
 /*global ApiClient*/
