@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         OpenList 智能刮削整理工具 (基于 TMDB)
 // @namespace    https://github.com/
-// @version      4.5
+// @version      4.6
 // @description  利用 TMDB 智能解析 OpenList 中的影视资源，自动刮削并规范目录结构（完美支持剧名提取、集数识别、去重跳过等）
 // @author       Your Name
 // @license      MIT
@@ -304,11 +304,29 @@
 
             if (!title) return null;
 
-            const url = `https://api.themoviedb.org/3/search/multi?api_key=${apiKey}&query=${encodeURIComponent(title)}&language=zh-CN`;
-            const res = await fetch(url);
-            const data = await res.json();
-            if (data.results && data.results.length > 0) {
-                const item = data.results.find(r => r.media_type === 'tv' || r.media_type === 'movie') || data.results[0];
+            let searchData = null;
+            if (isTv) {
+                // 如果明确是剧集，优先使用专用的 tv 搜索接口（TMDB multi接口对某些国产剧搜不到）
+                let tvRes = await fetch(`https://api.themoviedb.org/3/search/tv?api_key=${apiKey}&query=${encodeURIComponent(title)}&language=zh-CN`);
+                let tvData = await tvRes.json();
+                if (tvData.results && tvData.results.length > 0) {
+                    searchData = tvData.results[0];
+                    searchData.media_type = 'tv';
+                }
+            }
+
+            // 如果没搜到，或者不确定是剧集，兜底使用 multi 接口全局搜索
+            if (!searchData) {
+                const url = `https://api.themoviedb.org/3/search/multi?api_key=${apiKey}&query=${encodeURIComponent(title)}&language=zh-CN`;
+                const res = await fetch(url);
+                const data = await res.json();
+                if (data.results && data.results.length > 0) {
+                    searchData = data.results.find(r => r.media_type === 'tv' || r.media_type === 'movie') || data.results[0];
+                }
+            }
+
+            if (searchData) {
+                const item = searchData;
                 const name = item.title || item.name || item.original_name || item.original_title || title;
                 const date = item.release_date || item.first_air_date || "";
                 const year = date ? date.substring(0, 4) : "";
