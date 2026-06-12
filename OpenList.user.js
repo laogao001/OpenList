@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         OpenList 智能刮削整理工具 (基于 TMDB)
 // @namespace    https://github.com/
-// @version      4.6
+// @version      4.7
 // @description  利用 TMDB 智能解析 OpenList 中的影视资源，自动刮削并规范目录结构（完美支持剧名提取、集数识别、去重跳过等）
 // @author       Your Name
 // @license      MIT
@@ -202,7 +202,7 @@
         // 彻底清除常见的媒体库识别标签
         title = title.replace(/[\{\[][a-z]+-(tt)?\d+[\}\]]/ig, ' ');
         
-        let sMatch = title.match(/S(\d{1,2})/i) || title.match(/Season\s*(\d{1,2})/i) || title.match(/第(\d{1,2})季/);
+        let sMatch = title.match(/S(\d{1,2})/i) || title.match(/Season\s*(\d{1,2})/i) || title.match(/第\s*(\d{1,2})\s*季/);
         if (sMatch) {
             season = parseInt(sMatch[1]);
             title = title.replace(sMatch[0], ' ');
@@ -212,8 +212,8 @@
         // 提取集数
         let episode = null;
         let epMatch1 = title.match(/[\[\(]?(?:E|EP)(\d{1,4})[\]\)]?/i);
-        let epMatch2 = title.match(/第(\d{1,4})[集话]/);
-        let epMatch3 = title.match(/-\s*(\d{1,4})(?!\d)/);
+        let epMatch2 = title.match(/第\s*(\d{1,4})\s*[集话]/);
+        let epMatch3 = title.match(/-\s*(\d{1,4})(?![pPkK\d])/);
         let epMatch4 = title.match(/\[(\d{1,4})(?:v\d)?\]/i); // 匹配 [01] 这种日漫集数
         
         if (epMatch1) episode = parseInt(epMatch1[1]);
@@ -227,14 +227,16 @@
         
         // 清理集数和特定标记
         title = title.replace(/[\[\(]?(E|EP)\d{1,4}[\]\)]?/ig, ' ')
-                     .replace(/第\d{1,4}[集话]/g, ' ')
-                     .replace(/-\s*\d{1,4}(?!\d)/g, ' '); 
+                     .replace(/第\s*\d{1,4}\s*[集话]/g, ' ')
+                     .replace(/-\s*\d{1,4}(?![pPkK\d])/g, ' '); 
 
         // 清理年份
         title = title.replace(/[\(\[]?(19\d{2}|20\d{2})[\)\]]?/g, ' ');
 
         // 移除常见分辨率和格式标签
-        title = title.replace(/[\(\[]?(1080p|720p|2160p|4k|8k|x264|x265|h264|h265|hevc|avc|aac|flac|web-dl|webrip|bluray|bdrip|hdtv|web|dl|ddp|hdr10)[\)\]]?/ig, ' ');
+        title = title.replace(/[\(\[]?(1080p|720p|2160p|4k|8k|x264|x265|h264|h265|hevc|avc|aac|flac|web-dl|webrip|bluray|bdrip|hdtv|web|dl|ddp|hdr10|hdr|sdr)[\)\]]?/ig, ' ');
+        title = title.replace(/\b(?:5\.1|7\.1)\b/ig, ' ');
+        title = title.replace(/\b\d{3,4}p\b/ig, ' ');
 
         // 特殊处理：如果是 [字幕组][标题][集数] 尝试直接抓第二项
         const brackets = [...title.matchAll(/\[(.*?)\]/g)].map(m => m[1]);
@@ -276,13 +278,8 @@
                         tmdbCache.set(cacheKey, result);
                         return result;
                     }
-                    let mRes = await fetch(`https://api.themoviedb.org/3/movie/${tmdbId}?api_key=${apiKey}&language=zh-CN`);
-                    if (mRes.status === 200) {
-                        let item = await mRes.json();
-                        let result = { name: item.title || item.original_title, year: item.release_date ? item.release_date.substring(0,4) : "", type: 'movie' };
-                        tmdbCache.set(cacheKey, result);
-                        return result;
-                    }
+                    // 注意：如果明确是剧集但 TV ID 没查到，绝对不能回退去查电影 ID！
+                    // 因为 TMDB 的剧集 ID 和电影 ID 是互相独立且重叠的，会查到毫不相干的电影！
                 } else {
                     // 默认先尝试电影接口
                     let mRes = await fetch(`https://api.themoviedb.org/3/movie/${tmdbId}?api_key=${apiKey}&language=zh-CN`);
