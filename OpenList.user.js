@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         OpenList 智能刮削整理工具 (基于 TMDB)
 // @namespace    https://github.com/
-// @version      4.4
+// @version      4.5
 // @description  利用 TMDB 智能解析 OpenList 中的影视资源，自动刮削并规范目录结构（完美支持剧名提取、集数识别、去重跳过等）
 // @author       Your Name
 // @license      MIT
@@ -191,6 +191,7 @@
         let season = 1;
         let tmdbId = null;
         let isFallback = false;
+        let isTv = false;
         
         // 提取精确 tmdb id
         let idMatch = title.match(/\{tmdb-(\d+)\}/i) || title.match(/\[tmdb-(\d+)\]/i);
@@ -205,6 +206,7 @@
         if (sMatch) {
             season = parseInt(sMatch[1]);
             title = title.replace(sMatch[0], ' ');
+            isTv = true;
         }
         
         // 提取集数
@@ -219,6 +221,10 @@
         else if (epMatch3) episode = parseInt(epMatch3[1]);
         else if (epMatch4 && parseInt(epMatch4[1]) < 1000) episode = parseInt(epMatch4[1]);
         
+        if (episode !== null) {
+            isTv = true;
+        }
+        
         // 清理集数和特定标记
         title = title.replace(/[\[\(]?(E|EP)\d{1,4}[\]\)]?/ig, ' ')
                      .replace(/第\d{1,4}[集话]/g, ' ')
@@ -228,7 +234,7 @@
         title = title.replace(/[\(\[]?(19\d{2}|20\d{2})[\)\]]?/g, ' ');
 
         // 移除常见分辨率和格式标签
-        title = title.replace(/[\(\[]?(1080p|720p|2160p|4k|8k|x264|x265|h264|h265|hevc|avc|aac|flac|web-dl|webrip|bluray|bdrip|hdtv|web|dl)[\)\]]?/ig, ' ');
+        title = title.replace(/[\(\[]?(1080p|720p|2160p|4k|8k|x264|x265|h264|h265|hevc|avc|aac|flac|web-dl|webrip|bluray|bdrip|hdtv|web|dl|ddp|hdr10)[\)\]]?/ig, ' ');
 
         // 特殊处理：如果是 [字幕组][标题][集数] 尝试直接抓第二项
         const brackets = [...title.matchAll(/\[(.*?)\]/g)].map(m => m[1]);
@@ -249,31 +255,50 @@
             isFallback = true;
         }
         
-        return { title, season, episode, tmdbId, isFallback };
+        return { title, season, episode, tmdbId, isFallback, isTv };
     }
 
-    async function fetchTMDBInfo(title, apiKey, tmdbId = null) {
+    async function fetchTMDBInfo(title, apiKey, tmdbId = null, isTv = false) {
         if (!apiKey) return null;
-        let cacheKey = tmdbId ? `id_${tmdbId}` : title;
+        let cacheKey = tmdbId ? `id_${tmdbId}_${isTv ? 'tv' : 'movie'}` : title;
         if (!cacheKey) return null;
         
         if (tmdbCache.has(cacheKey)) return tmdbCache.get(cacheKey);
         
         try {
             if (tmdbId) {
-                let mRes = await fetch(`https://api.themoviedb.org/3/movie/${tmdbId}?api_key=${apiKey}&language=zh-CN`);
-                if (mRes.status === 200) {
-                    let item = await mRes.json();
-                    let result = { name: item.title || item.original_title, year: item.release_date ? item.release_date.substring(0,4) : "", type: 'movie' };
-                    tmdbCache.set(cacheKey, result);
-                    return result;
-                }
-                let tRes = await fetch(`https://api.themoviedb.org/3/tv/${tmdbId}?api_key=${apiKey}&language=zh-CN`);
-                if (tRes.status === 200) {
-                    let item = await tRes.json();
-                    let result = { name: item.name || item.original_name, year: item.first_air_date ? item.first_air_date.substring(0,4) : "", type: 'tv' };
-                    tmdbCache.set(cacheKey, result);
-                    return result;
+                if (isTv) {
+                    // 如果明确是剧集，先请求 TV 接口
+                    let tRes = await fetch(`https://api.themoviedb.org/3/tv/${tmdbId}?api_key=${apiKey}&language=zh-CN`);
+                    if (tRes.status === 200) {
+                        let item = await tRes.json();
+                        let result = { name: item.name || item.original_name, year: item.first_air_date ? item.first_air_date.substring(0,4) : "", type: 'tv' };
+                        tmdbCache.set(cacheKey, result);
+                        return result;
+                    }
+                    let mRes = await fetch(`https://api.themoviedb.org/3/movie/${tmdbId}?api_key=${apiKey}&language=zh-CN`);
+                    if (mRes.status === 200) {
+                        let item = await mRes.json();
+                        let result = { name: item.title || item.original_title, year: item.release_date ? item.release_date.substring(0,4) : "", type: 'movie' };
+                        tmdbCache.set(cacheKey, result);
+                        return result;
+                    }
+                } else {
+                    // 默认先尝试电影接口
+                    let mRes = await fetch(`https://api.themoviedb.org/3/movie/${tmdbId}?api_key=${apiKey}&language=zh-CN`);
+                    if (mRes.status === 200) {
+                        let item = await mRes.json();
+                        let result = { name: item.title || item.original_title, year: item.release_date ? item.release_date.substring(0,4) : "", type: 'movie' };
+                        tmdbCache.set(cacheKey, result);
+                        return result;
+                    }
+                    let tRes = await fetch(`https://api.themoviedb.org/3/tv/${tmdbId}?api_key=${apiKey}&language=zh-CN`);
+                    if (tRes.status === 200) {
+                        let item = await tRes.json();
+                        let result = { name: item.name || item.original_name, year: item.first_air_date ? item.first_air_date.substring(0,4) : "", type: 'tv' };
+                        tmdbCache.set(cacheKey, result);
+                        return result;
+                    }
                 }
             }
 
@@ -344,6 +369,11 @@
                     if (directParentParsed && directParentParsed.season > 1) targetSeason = directParentParsed.season;
                     if (parsedFile.season > 1) targetSeason = parsedFile.season;
 
+                    let targetIsTv = false;
+                    if (parsedFile.isTv || parsedFolder.isTv || (directParentParsed && directParentParsed.isTv) || targetSeason > 1) {
+                        targetIsTv = true;
+                    }
+
                     // 汇总 TMDB ID (优先级递减)
                     let targetTmdbId = parsedFile.tmdbId;
                     if (!targetTmdbId && directParentParsed) targetTmdbId = directParentParsed.tmdbId;
@@ -373,11 +403,11 @@
                     let finalDstDir = baseDstPath;
 
                     if (targetTitle || targetTmdbId) {
-                        let tmdb = await fetchTMDBInfo(targetTitle, apiKey, targetTmdbId);
+                        let tmdb = await fetchTMDBInfo(targetTitle, apiKey, targetTmdbId, targetIsTv);
                         
                         // 容错：没提供 ID 时如果搜不到，尝试切回文件名再搜
                         if ((!tmdb || !tmdb.name) && !targetTmdbId && targetTitle !== parsedFile.title && parsedFile.title.length > 2) {
-                            tmdb = await fetchTMDBInfo(parsedFile.title, apiKey);
+                            tmdb = await fetchTMDBInfo(parsedFile.title, apiKey, null, targetIsTv);
                         }
 
                         if (tmdb && tmdb.name) {
