@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         OpenList 智能刮削整理工具 (基于 TMDB)
 // @namespace    https://github.com/
-// @version      4.7
+// @version      4.8
 // @description  利用 TMDB 智能解析 OpenList 中的影视资源，自动刮削并规范目录结构（完美支持剧名提取、集数识别、去重跳过等）
 // @author       Your Name
 // @license      MIT
@@ -345,7 +345,10 @@
         async function traverse(currentSrc) {
             log(`🔎 智能分析目录: ${currentSrc}`);
             const srcListRes = await apiRequest('/api/fs/list', { path: currentSrc, password: "", refresh: true }, token);
-            if (srcListRes.code !== 200 || !srcListRes.data.content) return;
+            if (srcListRes.code !== 200) {
+                throw new Error(`读取目录失败 [${currentSrc}]: ${srcListRes.message || '未知错误'}。请检查路径是否正确（例如有无多余的空格）。`);
+            }
+            if (!srcListRes.data || !srcListRes.data.content) return;
 
             // 获取层级路径名，用于向上寻根（反转数组让最近的文件夹排前面）
             const pathParts = currentSrc.split('/').filter(p => p.trim() !== '');
@@ -489,7 +492,10 @@
         async function traverse(currentSrc, currentDst) {
             log(`🔎 深度扫描目录: ${currentSrc}`);
             const srcListRes = await apiRequest('/api/fs/list', { path: currentSrc, password: "", refresh: true }, token);
-            if (srcListRes.code !== 200 || !srcListRes.data.content) return;
+            if (srcListRes.code !== 200) {
+                throw new Error(`读取目录失败 [${currentSrc}]: ${srcListRes.message || '未知错误'}。请检查路径是否正确。`);
+            }
+            if (!srcListRes.data || !srcListRes.data.content) return;
             const srcItems = srcListRes.data.content;
 
             let dstExistNames = [];
